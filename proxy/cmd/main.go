@@ -19,6 +19,7 @@ func main() {
 	var targetVncHost = flag.String("targHost", "", "target vnc server host (deprecated, use -target)")
 	var targetVncPass = flag.String("targPass", "", "target vnc password")
 	var logLevel = flag.String("logLevel", "info", "change logging level")
+	var targetScript = flag.String("targetScript", "", "script to trigger to generate target")
 
 	flag.Parse()
 	logger.SetLogLevel(*logLevel)
@@ -44,11 +45,15 @@ func main() {
 		tcpUrl = ":" + string(*tcpPort)
 	}
 
-	proxy := &vncproxy.VncProxy{
-		WsListeningUrl:   "http://0.0.0.0:" + string(*wsPort) + "/", // empty = not listening on ws
-		TcpListeningUrl:  tcpUrl,
-		ProxyVncPassword: *vncPass, //empty = no auth
-		SingleSession: &vncproxy.VncSession{
+	var session *vncproxy.VncSession
+	if *targetScript != "" {
+		var err error
+		session, err = vncproxy.GenerateSession(*targetScript)
+		if err != nil {
+			os.Exit(1)
+		}
+	} else {
+		session = &vncproxy.VncSession{
 			Target:         *targetVnc,
 			TargetHostname: *targetVncHost,
 			TargetPort:     *targetVncPort,
@@ -56,7 +61,15 @@ func main() {
 			ID:             "dummySession",
 			Status:         vncproxy.SessionStatusInit,
 			Type:           vncproxy.SessionTypeProxyPass,
-		}, // to be used when not using sessions
+		}
+
+	}
+
+	proxy := &vncproxy.VncProxy{
+		WsListeningUrl:   "http://0.0.0.0:" + string(*wsPort) + "/", // empty = not listening on ws
+		TcpListeningUrl:  tcpUrl,
+		ProxyVncPassword: *vncPass, //empty = no auth
+		SingleSession: session, // to be used when not using sessions
 		UsingSessions: false, //false = single session - defined in the var above
 	}
 
